@@ -88,5 +88,3 @@ while current_size != total_size:
 		print("(corrent size / total size) = " + str(current_size) + "/" + str(total_size) + " , " + str(round(current_size/total_size*100, 3))+ "%")
 
 write_file.close()
-
-

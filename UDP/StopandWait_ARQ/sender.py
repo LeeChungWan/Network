@@ -32,12 +32,24 @@ while 1:
 		info_packet = h.digest() + str(seq_num).encode() + file_info
 		sender_sock.sendto(info_packet, (receiverIP, receiverPort))
 
-		#receive ACK
+		#received ACK
 		ACK = sender_sock.recv(1)
+		#received NAK		
 		while ACK.decode() != str((seq_num + 1) % 2) :
+			print(" * Received NAK - Retransmit file Info!")
+			h = hashlib.sha1()
+			checksum = str(seq_num).encode() + file_info
+			h.update(chceksum)
+			info_packet = h.digest() + str(seq_num).encode() + file_info
+			sender_sock.sendto(info_packet, (receiverIP, receiverPort))
+			ACK = sender_sock.recv(1)
+		#received wrong ACK		
+		while ACK.decode() != str((seq_num + 1) % 2) :
+			print(" * Received AKC - Retransmit file Info!")
 			sender_sock.sendto(info_packet, (receiverIP, receiverPort))
 			ACK = sender_sock.recv(1)
 
+		
 		print("Start File send")
 		# plus + 1 -> seq_num
 		seq_num = (seq_num + 1) % 2
@@ -47,6 +59,28 @@ while 1:
 		print(" * Time Out!! ***")
 		print("Retransmission File Info...")
 		sender_sock.sendto(info_packet, (receiverIP, receiverPort))
+		#received ACK
+		ACK = sender_sock.recv(1)
+		#received NAK		
+		while ACK.decode() != str((seq_num + 1) % 2) :
+			print(" * Received NAK - Retransmit file Info!")
+			h = hashlib.sha1()
+			checksum = str(seq_num).encode() + file_info
+			h.update(chceksum)
+			info_packet = h.digest() + str(seq_num).encode() + file_info
+			sender_sock.sendto(info_packet, (receiverIP, receiverPort))
+			ACK = sender_sock.recv(1)
+		#received wrong ACK		
+		while ACK.decode() != str((seq_num + 1) % 2) :
+			print(" * Received AKC - Retransmit file Info!")
+			sender_sock.sendto(info_packet, (receiverIP, receiverPort))
+			ACK = sender_sock.recv(1)
+		seq_num = (seq_num + 1) % 2
+		print("Start File send")
+		# plus + 1 -> seq_num
+		seq_num = (seq_num + 1) % 2
+		read_file.close()
+		break
 
 
 read_file = open("./"+file_name, "rb")
@@ -65,23 +99,48 @@ while current_size != total_size:
 		h.update(checksum)
 		data_packet = h.digest() + str(seq_num).encode() + data
 		sender_sock.sendto(data_packet, (receiverIP, receiverPort))
-		#receive ACK
+		#received ACK
 		ACK = sender_sock.recv(1)
+		#received NAK
 		while ACK.decode() == str(NAK) :
 			print(" * Received NAK - Retransmit!")
 			print("Retransmission : (corrent size / total size) = " + str(current_size) + "/" + str(total_size) + " , " + str(round(current_size/total_size*100, 3))+ "%")
+			h = hashlib.sha1()
+			checksum = str(seq_num).encode() + data
+			h.update(checksum)
+			data_packet = h.digest() + str(seq_num).encode() + data
+			sender_sock.sendto(data_packet, (receiverIP, receiverPort))
+			ACK = sender_sock.recv(1)
+		#received wrong ACK		
+		while ACK.decode() != str((seq_num + 1) % 2) :
 			sender_sock.sendto(data_packet, (receiverIP, receiverPort))
 			ACK = sender_sock.recv(1)
 
+		seq_num = (seq_num + 1) % 2
 		current_size += len(data)
 
 		print("(corrent size / total size) = " + str(current_size) + "/" + str(total_size) + " , " + str(round(current_size/total_size*100, 3))+ "%")
 	except socket.timeout as e:
-		current_size += len(data)
 		print(" * Time Out!! ***")
 		print("Retransmission : (corrent size / total size) = " + str(current_size) + "/" + str(total_size) + " , " + str(round(current_size/total_size*100, 3))+ "%")
 		sender_sock.sendto(data_packet, (receiverIP, receiverPort))
+		ACK = sender_sock.recv(1)
+		#received NAK
+		while ACK.decode() == str(NAK) :
+			print(" * Received NAK - Retransmit!")
+			print("Retransmission : (corrent size / total size) = " + str(current_size) + "/" + str(total_size) + " , " + str(round(current_size/total_size*100, 3))+ "%")
+			h = hashlib.sha1()
+			checksum = str(seq_num).encode() + data
+			h.update(checksum)
+			data_packet = h.digest() + str(seq_num).encode() + data
+			sender_sock.sendto(data_packet, (receiverIP, receiverPort))
+			ACK = sender_sock.recv(1)
+		#received wrong ACK		
+		while ACK.decode() != str((seq_num + 1) % 2) :
+			sender_sock.sendto(data_packet, (receiverIP, receiverPort))
+			ACK = sender_sock.recv(1)
+		current_size += len(data)
+		seq_num = (seq_num + 1) % 2
 	
 
 read_file.close()
-
