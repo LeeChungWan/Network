@@ -30,14 +30,6 @@ read_file = open("./"+file_name, "rb")
 total_size = len(read_file.read())
 read_file.close()
 
-#check numOfFrame
-numOfFrame = total_size / 1024
-if total_size % 1024 != 0:
-	numOfFrame += 1
-
-# file open for sending file data.
-read_file = open("./"+file_name, "rb")
-
 # append file info to window list.
 h = hashlib.sha1()
 file_info = total_size.to_bytes(4, byteorder = "big") + file_name.encode()
@@ -50,10 +42,14 @@ h.update(checksum)
 info_packet = h.digest() + seqAndACK + file_info
 window.append(info_packet)
 
+# file open for sending file data.
+read_file = open("./"+file_name, "rb")
 
 # numOfFrame add file info so count is -1 , not 0.
 count = -1
-while count != numOfFrame:
+while current_size != total_size:
+	if count == -1:
+		sender_sock.sendto(window[0], (receiverIP, receiverPort))
 	# append file data until full window.	
 	while len(window) != 4:
 		h = hashlib.sha1()
@@ -80,11 +76,12 @@ while count != numOfFrame:
 	checkACK = seqList[checkRecvACKIndex]
 	checkSeqAndACK = (checkSeqNum|checkACK).to_bytes(1, "big")
 	if recvSeqAndACK == checkSeqAndACK:
-		window.remove(0)
+		# remove first value in window		
+		window[0:1] = []
 		checkRecvACKIndex = (checkRecvACKIndex + 1) % 8
 		count += 1
 
-
+print("End")
 read_file.close()
 
 
