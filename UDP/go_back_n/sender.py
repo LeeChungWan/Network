@@ -22,6 +22,7 @@ print("Send File Info(file Name, file Size, seqNum) to Server...")
 file_name = "dog.jpg"
 total_size = 0
 current_size = 0
+current_window_data_size = []
 
 checkRecvACKIndex = 0
 
@@ -48,38 +49,79 @@ read_file = open("./"+file_name, "rb")
 # numOfFrame add file info so count is -1 , not 0.
 count = -1
 while current_size != total_size:
-	if count == -1:
-		sender_sock.sendto(window[0], (receiverIP, receiverPort))
-	# append file data until full window.	
-	while len(window) != 4:
-		h = hashlib.sha1()
-		data = read_file.read(1024)
-		if len(data) == 0:
-			break
-		seqNum = seqList[seqIndex]<<4
-		ACK = seqList[seqIndex]
-		seqIndex = (seqIndex + 1) % 8
-		seqAndACK = (seqNum|ACK).to_bytes(1, "big")
-		checksum = seqAndACK + data
-		h.update(checksum)
-		data_packet = h.digest() + seqAndACK + data
-		window.append(data_packet)
-		# sending window's data to receiver.
-		sender_sock.sendto(data_packet, (receiverIP, receiverPort))
-		current_size += len(data)
-		print("(corrent size / total size) = " + str(current_size) + "/" + str(total_size) + " , " + str(round(current_size/total_size*100, 3))+ "%")
+	try:
 
+		if count == -1:
+			sender_sock.sendto(window[0], (receiverIP, receiverPort))
+			current_window_data_size.append(total_size)
+			count+=1
+			
+			
+		# append file data until full window.			
+		while len(window) != 4:
+			h = hashlib.sha1()
+			data = read_file.read(1024)
+			if len(data) == 0:
+				break
+			seqNum = seqList[seqIndex]<<4
+			ACK = seqList[seqIndex]
+			seqAndACK = (seqNum|ACK).to_bytes(1, "big")
+			checksum = seqAndACK + data
+			h.update(checksum)
+			data_packet = h.digest() + seqAndACK + data
+			window.append(data_packet)
+			if count == 5:
+				h = hashlib.sha1()
+				seqNum = seqList[seqIndex]<<4
+				ACK = seqList[seqIndex]
+				seqAndACK = (seqNum|ACK).to_bytes(1, "big")
+				#wrong checksum				
+				checksum = data
+				h.update(checksum)
+				wrong_data_packet = h.digest() + seqAndACK + data
+				sender_sock.sendto(wrong_data_packet, (receiverIP, receiverPort))
+			else:			
+				# sending window's data to receiver.
+				sender_sock.sendto(data_packet, (receiverIP, receiverPort))
+			count += 1
+			current_size += len(data)
+			current_window_data_size.append(len(data))
+			print("[SEQ:"+ str(seqIndex) +"]"+"(corrent size / total size) = " + str(current_size) + "/" + str(total_size) + " , " + str(round(current_size/total_size*100, 3))+ "%")
+			seqIndex = (seqIndex + 1) % 8
 
-	# received seqAndACK
-	recvSeqAndACK = sender_sock.recv(1)
-	checkSeqNum = seqList[checkRecvACKIndex]<<4
-	checkACK = seqList[checkRecvACKIndex]
-	checkSeqAndACK = (checkSeqNum|checkACK).to_bytes(1, "big")
-	if recvSeqAndACK == checkSeqAndACK:
-		# remove first value in window		
-		window[0:1] = []
-		checkRecvACKIndex = (checkRecvACKIndex + 1) % 8
-		count += 1
+		# received seqAndACK
+		recvSeqAndACK = sender_sock.recv(1)
+		checkSeqNum = seqList[checkRecvACKIndex]<<4
+		checkACK = seqList[checkRecvACKIndex]
+		checkSeqAndACK = (checkSeqNum|checkACK).to_bytes(1, "big")
+		if recvSeqAndACK == checkSeqAndACK:
+			# remove first value in window		
+			window[0:1] = []
+			current_window_data_size[0:1] = []
+			checkRecvACKIndex = (checkRecvACKIndex + 1) % 8
+			
+		# case NAK.	
+		else:
+			print(" * Received NAK - Retransmit!")
+			retransmit_data_size = sum(i for i in current_window_data_size)
+			current_size -= retransmit_data_size
+			for i in range(len(current_window_data_size)):
+				data_packet = window[i]
+				sender_sock.sendto(data_packet, (receiverIP, receiverPort))
+				current_size += current_window_data_size[i]
+				print("Retransmission : (corrent size / total size) = " + str(current_size) + "/" + str(total_size) + " , " + str(round(current_size/total_size*100, 3))+ "%")
+			
+
+	except socket.timeout as e:
+		print("*** Time Out!! ***")
+		retransmit_data_size = sum(i for i in current_window_data_size)
+		current_size -= retransmit_data_size
+		for i in range(len(current_window_data_size)):
+			data_packet = window[i]
+			sender_sock.sendto(data_packet, (receiverIP, receiverPort))
+			current_size += current_window_data_size[i]
+			print("Retransmission : (corrent size / total size) = " + str(current_size) + "/" + str(total_size) + " , " + str(round(current_size/total_size*100, 3))+ "%")
+			
 
 print("End")
 read_file.close()
